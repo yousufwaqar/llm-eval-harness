@@ -1,5 +1,7 @@
 # llm-eval-harness
 
+[![eval-ci](https://github.com/yousufwaqar/llm-eval-harness/actions/workflows/eval-ci.yml/badge.svg)](https://github.com/yousufwaqar/llm-eval-harness/actions/workflows/eval-ci.yml)
+
 A small, provider-agnostic **evaluation harness for LLM-powered features** - the kind of quality gate you put in front of a RAG assistant, a Copilot-style feature, or any product that ships model output to users.
 
 It runs **with zero API keys and no network** using a built-in stub model, so the whole suite (and its CI) is fully reproducible. Point it at a real provider (Ollama, Azure OpenAI, ...) by implementing one interface.
