@@ -23,6 +23,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit tests (the harness tests itself)
+        run: npm test
+
       - name: Run evaluation gate (stub model, no API key required)
         run: npm run eval
 
@@ -35,9 +38,12 @@ jobs:
             echo "OK: gate correctly failed the bad model"
           fi
 
-      - name: Upload eval report
+      - name: Upload eval reports (json + html + scorecard)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-report
-          path: reports/latest.json
+          name: eval-reports
+          path: |
+            reports/latest.json
+            reports/report.html
+            reports/scorecard.md

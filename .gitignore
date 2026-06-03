@@ -1,5 +1,7 @@
 node_modules/
 reports/latest.json
+reports/report.html
+reports/scorecard.md
 *.log
 .DS_Store
 .env

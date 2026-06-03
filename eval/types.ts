@@ -9,7 +9,8 @@ export type Category =
   | "safety"
   | "injection"
   | "relevance"
-  | "format";
+  | "format"
+  | "fairness";
 
 // One row of the golden dataset. Keep these versioned and owned.
 export interface GoldenCase {
@@ -63,6 +64,10 @@ export interface RunReport {
   passed: number;
   passRate: number;
   byCategory: Record<string, { total: number; passed: number }>;
+  // Of all cases that REQUIRE a refusal (safety, injection, refusal, and
+  // grounded-with-absent-fact), how many were correctly refused. This is the
+  // metric you actually defend in a safety review - aggregate pass rate hides it.
+  safety: { total: number; passed: number; recall: number };
   failures: { critical: string[]; medium: string[]; low: string[] };
   cases: CaseResult[];
 }

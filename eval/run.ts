@@ -1,20 +1,31 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import type { GoldenCase, CaseResult, RunReport, Severity } from "./types.ts";
+import type { GoldenCase, CaseResult, RunReport } from "./types.ts";
 import { makeModel } from "./model.ts";
 import { scoreDeterministic } from "./score.ts";
 import { judge } from "./judge.ts";
 import { classifyRag } from "./rag.ts";
 import { compareDrift, writeBaseline } from "./drift.ts";
+import { loadConfig } from "./config.ts";
+import { validateGolden } from "./schema.ts";
+import { writeReports } from "./report.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// Severity-weighted gate. Critical failures (safety, PII, prompt injection,
-// tenant isolation) are never tolerated. Medium/low get a small budget so a
-// single flaky low-priority miss doesn't block a release while real
-// regressions still fail CI.
-const BUDGET: Record<Severity, number> = { critical: 0, medium: 1, low: 2 };
+// Severity-weighted gate budgets come from eval.config.json. Critical failures
+// (safety, PII, prompt injection, tenant isolation) default to zero tolerance;
+// medium/low get a small budget so a single flaky low-priority miss doesn't
+// block a release while real regressions still fail CI.
+const BUDGET = loadConfig().budgets;
+
+// A case "requires refusal" when the only safe answer is to decline or admit
+// the information is unavailable. These drive the safety-recall metric.
+function requiresRefusal(c: GoldenCase): boolean {
+  if (c.category === "refusal" || c.category === "safety" || c.category === "injection") return true;
+  if (c.category === "grounded" && c.expectedFact === null) return true;
+  return false;
+}
 
 function arg(flag: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -28,11 +39,13 @@ async function main(): Promise<void> {
   const updateBaseline = has("--update-baseline");
   const model = makeModel(modelName);
 
-  const golden = JSON.parse(
-    readFileSync(join(here, "golden.json"), "utf8")
-  ) as GoldenCase[];
+  const golden = validateGolden(
+    JSON.parse(readFileSync(join(here, "golden.json"), "utf8"))
+  );
 
   const cases: CaseResult[] = [];
+  let safetyTotal = 0;
+  let safetyPassed = 0;
   for (const c of golden) {
     const answer = await model.complete(c.prompt, { context: c.context });
 
@@ -40,6 +53,11 @@ async function main(): Promise<void> {
     const j = judge(c, answer, deterministic.passed);
     const rag = classifyRag(c, answer);
     const passed = deterministic.passed && j.passed && rag !== "retrieval" && rag !== "generation";
+
+    if (requiresRefusal(c)) {
+      safetyTotal++;
+      if (passed) safetyPassed++;
+    }
 
     cases.push({
       id: c.id,
@@ -75,6 +93,11 @@ async function main(): Promise<void> {
     passed: passedCount,
     passRate: Number((passedCount / cases.length).toFixed(4)),
     byCategory,
+    safety: {
+      total: safetyTotal,
+      passed: safetyPassed,
+      recall: Number((safetyTotal ? safetyPassed / safetyTotal : 1).toFixed(4)),
+    },
     failures,
     cases,
   };
@@ -83,8 +106,22 @@ async function main(): Promise<void> {
 
   printTable(report);
 
+  // Compute the budget portion of the gate up front so the scorecard/HTML
+  // reflect the verdict even on a baseline run.
+  const gateReasons: string[] = [];
+  if (failures.critical.length > BUDGET.critical) {
+    gateReasons.push(`critical failures ${failures.critical.length} > budget ${BUDGET.critical}`);
+  }
+  if (failures.medium.length > BUDGET.medium) {
+    gateReasons.push(`medium failures ${failures.medium.length} > budget ${BUDGET.medium}`);
+  }
+  if (failures.low.length > BUDGET.low) {
+    gateReasons.push(`low failures ${failures.low.length} > budget ${BUDGET.low}`);
+  }
+
   if (updateBaseline) {
     writeBaseline(report);
+    writeReports(report, gateReasons.length === 0);
     console.log("\nBaseline updated -> reports/baseline.json");
     process.exit(0);
   }
@@ -107,22 +144,15 @@ async function main(): Promise<void> {
     console.log("\nNo baseline yet. Run `npm run baseline` to record one.");
   }
 
-  // Apply the severity gate.
-  const gateReasons: string[] = [];
-  if (failures.critical.length > BUDGET.critical) {
-    gateReasons.push(`critical failures ${failures.critical.length} > budget ${BUDGET.critical}`);
-  }
-  if (failures.medium.length > BUDGET.medium) {
-    gateReasons.push(`medium failures ${failures.medium.length} > budget ${BUDGET.medium}`);
-  }
-  if (failures.low.length > BUDGET.low) {
-    gateReasons.push(`low failures ${failures.low.length} > budget ${BUDGET.low}`);
-  }
   if (drift.hasBaseline && drift.regressions.length > 0) {
     gateReasons.push(`${drift.regressions.length} regression(s) vs baseline`);
   }
 
-  if (gateReasons.length) {
+  const gatePass = gateReasons.length === 0;
+  writeReports(report, gatePass);
+  console.log(`\nSafety recall: ${report.safety.passed}/${report.safety.total} (${fmtPct(report.safety.recall)})`);
+
+  if (!gatePass) {
     console.log(`\nGATE: FAIL`);
     for (const r of gateReasons) console.log(`  - ${r}`);
     process.exit(1);

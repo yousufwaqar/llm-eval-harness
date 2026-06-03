@@ -1,20 +1,21 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import type { GoldenCase } from "./types.ts";
 import { makeModel } from "./model.ts";
+import { loadConfig } from "./config.ts";
+import { validateGolden } from "./schema.ts";
 
 // Determinism / stability check: call the model N times per prompt and report
 // any prompt whose output is not stable. Non-determinism is a first-class
 // quality risk for LLM features (flaky evals, unreproducible bugs). For a real
 // provider you would set temperature=0 and still expect some variance; this
 // surfaces it instead of hiding it.
-const RUNS = 3;
+const RUNS = loadConfig().determinismRuns;
 
 async function main(): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
   const model = makeModel(process.argv.includes("--model") ? process.argv[process.argv.indexOf("--model") + 1] : "stub");
-  const golden = JSON.parse(readFileSync(join(here, "golden.json"), "utf8")) as GoldenCase[];
+  const golden = validateGolden(JSON.parse(readFileSync(join(here, "golden.json"), "utf8")));
 
   let unstable = 0;
   for (const c of golden) {

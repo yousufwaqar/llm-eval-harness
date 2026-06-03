@@ -20,10 +20,14 @@ This harness encodes the patterns I use for that problem:
 | Cheap, stable checks | **Deterministic scorer** (`mustInclude` / `mustNotInclude` / regex) |
 | Open-ended quality | **LLM-as-judge** with a structured `{score, pass, rationale}` contract |
 | RAG: where did it break? | **Retrieval vs generation** failure classification |
-| Safety / abuse | **Red-team cases**: PII, prompt injection, unsafe requests, tenant isolation |
-| Release decision | **Severity-weighted gate** (critical = zero tolerance) |
+| Safety / abuse | **Red-team cases**: PII, prompt injection, toxicity, bias, unsafe requests, tenant isolation |
+| How safe, in one number? | **Safety recall** - share of refuse-required cases correctly refused |
+| Release decision | **Config-driven severity gate** (critical = zero tolerance) |
 | Did quality drift? | **Baseline compare** flags case-level regressions, not just an aggregate |
 | Flaky output | **Determinism check** runs each prompt N times |
+| Is the harness itself correct? | **Self-tests** (`node:test`) cover the scorer, judge, RAG classifier, and schema |
+| Bad dataset shouldn't pass silently | **Schema validation** of `golden.json` fails the run on a malformed case |
+| See results at a glance | **HTML report + markdown scorecard** (also posted as the CI job summary) |
 
 ---
 
@@ -40,10 +44,14 @@ npm run eval:bad      # runs a deliberately broken model -> GATE: FAIL (exit 1)
 Other commands:
 
 ```bash
+npm test              # self-tests: the harness tests its own scorers (node:test, zero deps)
 npm run baseline      # record current run as reports/baseline.json
 npm run determinism   # check each prompt is stable across repeated calls
+npm run eval:ollama   # evaluate a real local model via Ollama (see below)
 npm run typecheck     # tsc --noEmit
 ```
+
+Every run also writes a self-contained **`reports/report.html`** dashboard and a **`reports/scorecard.md`** summary. In CI the scorecard is posted to the GitHub Actions job summary, so each run shows the verdict without opening logs.
 
 ---
 
@@ -59,14 +67,25 @@ A case passes only if deterministic + judge pass and it isn't a RAG retrieval/ge
 
 ### The release gate
 
+Budgets live in **`eval.config.json`** (so tuning the gate is a reviewable config change, not a code edit):
+
+```jsonc
+{
+  "budgets": { "critical": 0, "medium": 1, "low": 2 },  // max tolerated failures per severity
+  "judgePassThreshold": 4,                               // judge score (1..5) needed to pass
+  "determinismRuns": 3,
+  "ollama": { "endpoint": "http://localhost:11434", "model": "llama3" }
+}
 ```
-critical failures  -> budget 0   (safety, PII, prompt injection, tenant isolation)
+
+```
+critical failures  -> budget 0   (safety, PII, prompt injection, tenant isolation, toxicity)
 medium failures    -> budget 1
 low failures        -> budget 2
 any regression vs baseline -> fail
 ```
 
-Critical is zero-tolerance by design. Medium/low get a small budget so one flaky low-priority miss doesn't block a release while real regressions still fail CI. Tune in `eval/run.ts`.
+Critical is zero-tolerance by design. Medium/low get a small budget so one flaky low-priority miss doesn't block a release while real regressions still fail CI. The run also reports **safety recall** - of every case that *requires* a refusal (safety, injection, refusal, and grounded-with-absent-fact), how many were correctly refused. That's the number you defend in a safety review.
 
 ---
 
@@ -82,11 +101,11 @@ export interface ChatModel {
 ```
 
 ```bash
-tsx eval/run.ts --model ollama   # local, e.g. http://localhost:11434
-tsx eval/run.ts --model azure    # Azure OpenAI (set endpoint + key)
+npm run eval:ollama              # uses eval.config.json -> ollama.endpoint / ollama.model
+tsx eval/run.ts --model azure    # Azure OpenAI (implement complete(), set endpoint + key)
 ```
 
-`OllamaModel` and `AzureOpenAIModel` are stubbed with clear "configure me" errors so the default path never needs credentials.
+`OllamaModel` is **fully implemented** - with [Ollama](https://ollama.com) running locally (`ollama serve` + `ollama pull llama3`), `npm run eval:ollama` evaluates a real LLM through the exact same gate, no API key. `AzureOpenAIModel` is a clearly-marked stub you fill in for cloud. Both are kept off the default path so CI stays hermetic.
 
 ---
 
@@ -108,7 +127,7 @@ Add a row to `eval/golden.json`:
 }
 ```
 
-Categories: `factual`, `grounded`, `refusal`, `safety`, `injection`, `relevance`, `format`. Severities: `critical`, `medium`, `low`.
+Categories: `factual`, `grounded`, `refusal`, `safety`, `injection`, `relevance`, `format`, `fairness`. Severities: `critical`, `medium`, `low`. The dataset is schema-validated on every run, so a typo'd category or severity, a duplicate id, an invalid regex, or a `grounded` case missing `expectedFact` fails fast instead of silently skipping the gate.
 
 ---
 
@@ -118,20 +137,25 @@ Categories: `factual`, `grounded`, `refusal`, `safety`, `injection`, `relevance`
 eval/
   types.ts          shared types
   golden.json       the versioned evaluation dataset
+  schema.ts         fail-fast validation of the dataset
+  config.ts         loads eval.config.json (budgets, thresholds, ollama)
   model.ts          ChatModel interface + stub / bad / ollama / azure providers
   score.ts          deterministic scorer
   judge.ts          LLM-as-judge (documented stub, real-model-ready)
   rag.ts            retrieval-vs-generation failure attribution
   drift.ts          baseline compare
+  report.ts         HTML report + markdown scorecard + CI job summary
   run.ts            orchestrator: score -> judge -> rag -> gate -> report
   determinism.ts    stability check
-reports/            latest.json + baseline.json
-.github/workflows/  eval-ci.yml (runs the gate + proves bad model fails)
+  tests/            node:test self-tests for the scorers/judge/rag/schema
+eval.config.json    gate budgets + thresholds (edit to tune the gate)
+reports/            latest.json, baseline.json, report.html, scorecard.md
+.github/workflows/  eval-ci.yml (typecheck + tests + gate + proves bad model fails)
 ```
 
 ## CI
 
-`.github/workflows/eval-ci.yml` typechecks, runs the gate on the good model (must pass), asserts the bad model fails the gate, and uploads `reports/latest.json` as an artifact. No secrets required.
+`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. No secrets required.
 
 ## License
 

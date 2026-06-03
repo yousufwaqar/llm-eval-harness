@@ -1,4 +1,5 @@
 import type { GoldenCase, JudgeResult } from "./types.ts";
+import { loadConfig } from "./config.ts";
 
 // LLM-as-judge (STUB).
 //
@@ -58,9 +59,10 @@ export function judge(c: GoldenCase, answer: string, deterministicPassed: boolea
   }
 
   score = Math.max(1, Math.min(5, score));
+  const threshold = loadConfig().judgePassThreshold;
   return {
     score,
-    passed: score >= 4,
+    passed: score >= threshold,
     rationale: notes.join("; "),
   };
 }
