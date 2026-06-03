@@ -1,0 +1,43 @@
+name: eval-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run evaluation gate (stub model, no API key required)
+        run: npm run eval
+
+      - name: Prove the gate catches a bad model
+        run: |
+          if npm run eval:bad; then
+            echo "ERROR: bad model unexpectedly passed the gate" >&2
+            exit 1
+          else
+            echo "OK: gate correctly failed the bad model"
+          fi
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: reports/latest.json

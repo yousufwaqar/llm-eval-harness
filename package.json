@@ -1,0 +1,21 @@
+{
+  "name": "llm-eval-harness",
+  "version": "0.1.0",
+  "description": "A provider-agnostic LLM evaluation harness: golden dataset, deterministic + LLM-as-judge scoring, RAG retrieval/generation separation, red-team suite, severity-weighted CI gate, and drift tracking. Runs with no API key using a built-in stub model.",
+  "type": "module",
+  "scripts": {
+    "eval": "tsx eval/run.ts",
+    "eval:bad": "tsx eval/run.ts --model bad",
+    "determinism": "tsx eval/determinism.ts",
+    "baseline": "tsx eval/run.ts --update-baseline",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["llm", "evaluation", "ai-quality", "sdet", "rag", "llm-as-judge", "testing"],
+  "license": "MIT",
+  "author": "Yousuf Waqar",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
