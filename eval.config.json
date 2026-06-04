@@ -9,5 +9,10 @@
   "ollama": {
     "endpoint": "http://localhost:11434",
     "model": "llama3"
+  },
+  "openai": {
+    "baseUrl": "http://localhost:11434/v1",
+    "model": "qwen2.5:0.5b",
+    "apiKeyEnv": "OPENAI_COMPAT_API_KEY"
   }
 }

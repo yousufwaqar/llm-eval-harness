@@ -1,12 +1,13 @@
 {
   "name": "llm-eval-harness",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A provider-agnostic LLM evaluation harness: golden dataset, deterministic + LLM-as-judge scoring, RAG retrieval/generation separation, red-team suite, severity-weighted CI gate, drift tracking, and an HTML/markdown scorecard. Runs with no API key using a built-in stub model.",
   "type": "module",
   "scripts": {
     "eval": "tsx eval/run.ts",
     "eval:bad": "tsx eval/run.ts --model bad",
     "eval:ollama": "tsx eval/run.ts --model ollama",
+    "eval:openai": "tsx eval/run.ts --model openai",
     "determinism": "tsx eval/determinism.ts",
     "baseline": "tsx eval/run.ts --update-baseline",
     "test": "node --import tsx --test eval/tests/score.test.ts eval/tests/rag.test.ts eval/tests/judge.test.ts eval/tests/schema.test.ts eval/tests/golden.test.ts",

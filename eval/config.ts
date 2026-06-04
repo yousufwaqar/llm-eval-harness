@@ -11,6 +11,11 @@ export interface EvalConfig {
   judgePassThreshold: number;
   determinismRuns: number;
   ollama: { endpoint: string; model: string };
+  // Generic OpenAI-compatible provider. Works with any server that exposes
+  // POST {baseUrl}/chat/completions: Foundry Local, Ollama's /v1, vLLM,
+  // LM Studio, or OpenAI itself. apiKeyEnv names the env var holding the key
+  // (local servers ignore it; cloud needs it), so no secret lives in config.
+  openai: { baseUrl: string; model: string; apiKeyEnv: string };
 }
 
 const DEFAULTS: EvalConfig = {
@@ -18,6 +23,11 @@ const DEFAULTS: EvalConfig = {
   judgePassThreshold: 4,
   determinismRuns: 3,
   ollama: { endpoint: "http://localhost:11434", model: "llama3" },
+  openai: {
+    baseUrl: "http://localhost:11434/v1",
+    model: "qwen2.5:0.5b",
+    apiKeyEnv: "OPENAI_COMPAT_API_KEY",
+  },
 };
 
 let cached: EvalConfig | undefined;
@@ -39,6 +49,7 @@ export function loadConfig(): EvalConfig {
     judgePassThreshold: raw.judgePassThreshold ?? DEFAULTS.judgePassThreshold,
     determinismRuns: raw.determinismRuns ?? DEFAULTS.determinismRuns,
     ollama: { ...DEFAULTS.ollama, ...(raw.ollama ?? {}) },
+    openai: { ...DEFAULTS.openai, ...(raw.openai ?? {}) },
   };
   return cached;
 }
