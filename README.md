@@ -248,7 +248,7 @@ ragas-eval/
   requirements.txt        ragas + pytest (CI only)
 eval.config.json    gate budgets + thresholds (edit to tune the gate)
 reports/            latest.json, baseline.json, report.html, scorecard.md
-.github/workflows/  eval-ci.yml (typecheck + tests + native gate + Promptfoo gate, both prove the bad model fails)
+.github/workflows/  eval-ci.yml (eval job: typecheck + tests + native gate + Promptfoo gate; plus separate deepeval and ragas Python jobs)
 ```
 
 ## CI
