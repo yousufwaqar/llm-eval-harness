@@ -1,0 +1,7 @@
+# Ragas RAG-evaluation track. Heavy (pulls a large dependency tree), so it runs
+# in CI only, never as part of the default Node path. Pinned for reproducibility.
+ragas==0.4.3
+# NonLLMContextRecall -> NonLLMStringSimilarity needs rapidfuzz, which is not a
+# core Ragas dependency in 0.4.3, so pin it explicitly.
+rapidfuzz>=3,<4
+pytest>=8,<9

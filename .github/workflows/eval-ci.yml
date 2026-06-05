@@ -98,3 +98,28 @@ jobs:
 
       - name: DeepEval suite (stub must pass, bad model must be caught)
         run: pytest python-eval -q
+
+  # Independent Ragas (Python) track for RETRIEVAL-quality evaluation. Separate
+  # job, heavy install, Python 3.12, tracking disabled.
+  ragas:
+    runs-on: ubuntu-latest
+    env:
+      # Disable Ragas usage analytics so the run stays hermetic and offline.
+      RAGAS_DO_NOT_TRACK: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ragas-eval/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r ragas-eval/requirements.txt
+
+      - name: Offline self-check (zero-dependency contract proof)
+        run: python ragas-eval/selfcheck.py
+
+      - name: Ragas retrieval suite (good retrieval passes, bad retrieval caught)
+        run: pytest ragas-eval -q

@@ -195,6 +195,23 @@ The Python StubModel / BadModel in `python-eval/models.py` reuse the exact canne
 
 ---
 
+## Retrieval quality with Ragas (Python)
+
+[Ragas](https://docs.ragas.io/) is a RAG-focused evaluation framework. Its signature is scoring the **retrieval** step (did the retriever fetch the right context?) separately from generation. This repo adds a small Ragas track that does exactly that, using a real Ragas metric that happens to be **non-LLM**: `NonLLMContextRecall`, which compares the retrieved contexts against the reference contexts with a string measure (no API key, no judge model, no network).
+
+To make the metric meaningful, `ragas-eval/corpus.py` defines a tiny corpus and two retrievers: a good one that fetches the relevant chunk, and a deliberately broken one that fetches an unrelated chunk. Context recall is then 1.0 for good retrieval (must pass) and 0.0 for bad retrieval (the negative control).
+
+```bash
+cd ragas-eval
+python selfcheck.py              # zero-dependency proof: good retrieval full recall, bad caught
+pip install -r requirements.txt  # Ragas + pytest (what CI installs)
+pytest -q                        # good retrieval passes, bad retrieval is caught
+```
+
+`selfcheck.py` reproduces the recall calculation in plain Python so you can validate the scenario before pulling Ragas. This track deliberately scopes the evaluation to retrieval; it does not claim to measure generation faithfulness (Ragas's faithfulness metric is LLM-powered and out of scope for this offline gate).
+
+---
+
 ## Layout
 
 ```
@@ -224,6 +241,11 @@ python-eval/
   test_golden_deepeval.py pytest suite (stub passes, bad model is caught)
   selfcheck.py            zero-dependency contract proof
   requirements.txt        deepeval + pytest (CI only)
+ragas-eval/
+  corpus.py               tiny corpus + good / bad retriever for a RAG scenario
+  test_ragas.py           Ragas NonLLMContextRecall suite (good passes, bad caught)
+  selfcheck.py            zero-dependency recall proof
+  requirements.txt        ragas + pytest (CI only)
 eval.config.json    gate budgets + thresholds (edit to tune the gate)
 reports/            latest.json, baseline.json, report.html, scorecard.md
 .github/workflows/  eval-ci.yml (typecheck + tests + native gate + Promptfoo gate, both prove the bad model fails)
@@ -231,7 +253,7 @@ reports/            latest.json, baseline.json, report.html, scorecard.md
 
 ## CI
 
-`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. It then runs the **Promptfoo** cross-check the same way (bad model must fail, stub model must pass) and uploads the Promptfoo report. A separate **`deepeval`** job (Python 3.12) runs the offline self-check and the DeepEval pytest suite (stub passes, bad model is caught). No secrets required.
+`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. It then runs the **Promptfoo** cross-check the same way (bad model must fail, stub model must pass) and uploads the Promptfoo report. A separate **`deepeval`** job (Python 3.12) runs the offline self-check and the DeepEval pytest suite (stub passes, bad model is caught). A separate **`ragas`** job (Python 3.12) runs the retrieval self-check and the Ragas `NonLLMContextRecall` suite (good retrieval passes, bad retrieval is caught). No secrets required.
 
 ## License
 
