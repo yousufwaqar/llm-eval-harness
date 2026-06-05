@@ -1,6 +1,15 @@
 # Ragas RAG-evaluation track. Heavy (pulls a large dependency tree), so it runs
 # in CI only, never as part of the default Node path. Pinned for reproducibility.
 ragas==0.4.3
+# Ragas 0.4.3 hard-imports langchain_community.chat_models.vertexai at package
+# import time. langchain-community removed that module in 0.3.23, so pin the last
+# release that still ships it (0.3.22). That release caps langchain and
+# langchain-core below 1.0, so mirror those caps here to make pip resolve one
+# consistent, importable stack instead of pulling a 1.0 langchain that conflicts.
+langchain-community==0.3.22
+langchain>=0.3.21,<1.0
+langchain-core>=0.3.45,<1.0
+langchain-openai<1.0
 # NonLLMContextRecall -> NonLLMStringSimilarity needs rapidfuzz, which is not a
 # core Ragas dependency in 0.4.3, so pin it explicitly.
 rapidfuzz>=3,<4
