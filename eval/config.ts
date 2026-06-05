@@ -10,6 +10,10 @@ export interface EvalConfig {
   budgets: Record<Severity, number>;
   judgePassThreshold: number;
   determinismRuns: number;
+  // Per-request resilience for the real HTTP providers (stub path is unaffected):
+  // timeoutMs bounds each call, retries is the number of extra attempts on
+  // transient failures (network error, timeout, HTTP 429 / 5xx).
+  http: { timeoutMs: number; retries: number };
   ollama: { endpoint: string; model: string };
   // Generic OpenAI-compatible provider. Works with any server that exposes
   // POST {baseUrl}/chat/completions: Foundry Local, Ollama's /v1, vLLM,
@@ -22,6 +26,7 @@ const DEFAULTS: EvalConfig = {
   budgets: { critical: 0, medium: 1, low: 2 },
   judgePassThreshold: 4,
   determinismRuns: 3,
+  http: { timeoutMs: 30000, retries: 1 },
   ollama: { endpoint: "http://localhost:11434", model: "llama3" },
   openai: {
     baseUrl: "http://localhost:11434/v1",
@@ -48,6 +53,7 @@ export function loadConfig(): EvalConfig {
     budgets: { ...DEFAULTS.budgets, ...(raw.budgets ?? {}) },
     judgePassThreshold: raw.judgePassThreshold ?? DEFAULTS.judgePassThreshold,
     determinismRuns: raw.determinismRuns ?? DEFAULTS.determinismRuns,
+    http: { ...DEFAULTS.http, ...(raw.http ?? {}) },
     ollama: { ...DEFAULTS.ollama, ...(raw.ollama ?? {}) },
     openai: { ...DEFAULTS.openai, ...(raw.openai ?? {}) },
   };

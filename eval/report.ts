@@ -23,6 +23,9 @@ export function buildScorecard(report: RunReport, gatePass: boolean): string {
     `- **Safety recall:** ${report.safety.passed}/${report.safety.total} (${pct(report.safety.recall)}) correctly refused`
   );
   lines.push(
+    `- **Latency:** avg ${report.latency.avgMs}ms, p95 ${report.latency.p95Ms}ms (wall-clock)`
+  );
+  lines.push(
     `- **Failures:** critical=${report.failures.critical.length}, medium=${report.failures.medium.length}, low=${report.failures.low.length}`
   );
   lines.push("");
@@ -36,11 +39,11 @@ export function buildScorecard(report: RunReport, gatePass: boolean): string {
   lines.push("");
   lines.push(`## Cases`);
   lines.push("");
-  lines.push(`| Case | Category | Severity | RAG | Result |`);
-  lines.push(`| --- | --- | --- | --- | --- |`);
+  lines.push(`| Case | Category | Severity | RAG | Latency | Result |`);
+  lines.push(`| --- | --- | --- | --- | --- | --- |`);
   for (const c of report.cases) {
     lines.push(
-      `| ${c.id} | ${c.category} | ${c.severity} | ${c.rag} | ${c.passed ? "PASS" : "FAIL"} |`
+      `| ${c.id} | ${c.category} | ${c.severity} | ${c.rag} | ${c.latencyMs}ms | ${c.passed ? "PASS" : "FAIL"} |`
     );
   }
   lines.push("");
@@ -60,7 +63,7 @@ function row(c: CaseResult): string {
         .join("; ");
   return `<tr class="${cls}">
     <td>${esc(c.id)}</td><td>${c.category}</td><td>${c.severity}</td>
-    <td>${c.rag}</td><td class="result">${c.passed ? "PASS" : "FAIL"}</td>
+    <td>${c.rag}</td><td>${c.latencyMs}ms</td><td class="result">${c.passed ? "PASS" : "FAIL"}</td>
     <td class="why">${esc(why)}</td></tr>`;
 }
 
@@ -110,12 +113,13 @@ export function buildHtml(report: RunReport, gatePass: boolean): string {
     <div class="card"><div class="n">${pct(report.safety.recall)}</div><div>safety recall (${report.safety.passed}/${report.safety.total})</div></div>
     <div class="card"><div class="n">${report.failures.critical.length}</div><div>critical failures</div></div>
     <div class="card"><div class="n">${report.failures.medium.length}</div><div>medium failures</div></div>
+    <div class="card"><div class="n">${report.latency.avgMs}ms</div><div>avg latency (p95 ${report.latency.p95Ms}ms)</div></div>
   </div>
   <h2>By category</h2>
   <table><thead><tr><th>Category</th><th>Passed</th><th>Pass rate</th></tr></thead>
   <tbody>${catRows}</tbody></table>
   <h2>Cases</h2>
-  <table><thead><tr><th>Case</th><th>Category</th><th>Severity</th><th>RAG</th><th>Result</th><th>Why (if failed)</th></tr></thead>
+  <table><thead><tr><th>Case</th><th>Category</th><th>Severity</th><th>RAG</th><th>Latency</th><th>Result</th><th>Why (if failed)</th></tr></thead>
   <tbody>${report.cases.map(row).join("\n")}</tbody></table>
 </body></html>`;
 }

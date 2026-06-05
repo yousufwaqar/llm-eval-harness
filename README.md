@@ -4,7 +4,7 @@
 
 A small, provider-agnostic **evaluation harness for LLM-powered features** - the kind of quality gate you put in front of a RAG assistant, a Copilot-style feature, or any product that ships model output to users.
 
-It runs **with zero API keys and no network** using a built-in stub model, so the whole suite (and its CI) is fully reproducible. Point it at a real provider (Ollama, Azure OpenAI, ...) by implementing one interface.
+It runs **with zero API keys and no network** using a built-in stub model, so the whole suite (and its CI) is fully reproducible. Point it at a real provider - an OpenAI-compatible endpoint (Foundry Local, vLLM, LM Studio, OpenAI, or Azure OpenAI) or Ollama, both included - by selecting it with `--model`, or wire up your own by implementing one interface.
 
 > Built to demonstrate AI-quality engineering: golden datasets, deterministic + LLM-as-judge scoring, RAG failure attribution, a red-team/safety suite, a severity-weighted release gate, and drift tracking against a baseline.
 
@@ -105,7 +105,7 @@ export interface ChatModel {
 ```bash
 npm run eval:openai              # any OpenAI-compatible server (Foundry Local, Ollama /v1, vLLM, LM Studio, OpenAI)
 npm run eval:ollama              # uses eval.config.json -> ollama.endpoint / ollama.model
-tsx eval/run.ts --model azure    # Azure OpenAI (implement complete(), set endpoint + key)
+tsx eval/run.ts --model azure    # Azure OpenAI: stub extension point (or just run eval:openai against your Azure endpoint)
 ```
 
 **`OpenAICompatibleModel`** is the recommended provider: it talks to any server exposing `POST {baseUrl}/chat/completions` in the OpenAI schema, so the same code evaluates a model on **Foundry Local**, **Ollama** (`/v1`), **vLLM**, **LM Studio**, or **OpenAI** by changing only `eval.config.json`:
@@ -118,7 +118,7 @@ tsx eval/run.ts --model azure    # Azure OpenAI (implement complete(), set endpo
 }
 ```
 
-The key is read from the named environment variable (never committed), and local servers accept any/no key. `OllamaModel` (native `/api/generate`) and `AzureOpenAIModel` are also included. All real providers are kept off the default path so CI stays hermetic, but `--model openai` runs a genuine LLM through the exact same gate.
+The key is read from the named environment variable (never committed), and local servers accept any/no key. `OllamaModel` (native `/api/generate`) is also included. `AzureOpenAIModel` is a stubbed extension point - because Azure OpenAI is itself OpenAI-compatible, you can evaluate an Azure deployment today via `--model openai` by pointing `openai.baseUrl` at your Azure endpoint. All real providers are kept off the default path so CI stays hermetic, but `--model openai` runs a genuine LLM through the exact same gate.
 
 ---
 
@@ -152,7 +152,7 @@ eval/
   golden.json       the versioned evaluation dataset
   schema.ts         fail-fast validation of the dataset
   config.ts         loads eval.config.json (budgets, thresholds, ollama)
-  model.ts          ChatModel interface + stub / bad / openai-compatible / ollama / azure providers
+  model.ts          ChatModel interface + stub / bad / openai-compatible / ollama providers + azure stub
   score.ts          deterministic scorer
   judge.ts          LLM-as-judge (documented stub, real-model-ready)
   rag.ts            retrieval-vs-generation failure attribution

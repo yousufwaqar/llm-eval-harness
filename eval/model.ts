@@ -15,6 +15,42 @@ export interface ChatModel {
   complete(prompt: string, opts?: ChatOptions): Promise<string>;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Resilient fetch for real model endpoints. Bounds every request with a timeout
+// (real endpoints stall) and retries ONLY transient failures: network errors,
+// timeouts, and HTTP 429 / 5xx. Client errors (4xx other than 429) are returned
+// immediately so the caller surfaces them rather than retrying a bad request.
+// Dependency-free and kept off the stub path, so CI stays hermetic.
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  retries: number
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      if ((res.status === 429 || res.status >= 500) && attempt < retries) {
+        await sleep(250 * 2 ** attempt);
+        continue;
+      }
+      return res;
+    } catch (e) {
+      lastError = e;
+      if (attempt < retries) {
+        await sleep(250 * 2 ** attempt);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError;
+}
+
 // Match a prompt to a canned answer by a unique keyword it contains.
 function pick(prompt: string, table: Array<[string, string]>, fallback: string): string {
   const p = prompt.toLowerCase();
@@ -99,21 +135,30 @@ export class OllamaModel implements ChatModel {
       ? `Use ONLY the following context to answer.\nContext:\n${opts.context}\n\nQuestion: ${prompt}`
       : prompt;
 
+    const { timeoutMs, retries } = loadConfig().http;
+
     let res: Response;
     try {
-      res = await fetch(`${this.endpoint}/api/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.model,
-          prompt: fullPrompt,
-          stream: false,
-          options: { temperature: opts?.temperature ?? 0 },
-        }),
-      });
+      res = await fetchWithRetry(
+        `${this.endpoint}/api/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: this.model,
+            prompt: fullPrompt,
+            stream: false,
+            options: { temperature: opts?.temperature ?? 0 },
+          }),
+        },
+        timeoutMs,
+        retries
+      );
     } catch (e) {
       throw new Error(
-        `Could not reach Ollama at ${this.endpoint}. Is it running? (ollama serve). Original: ${(e as Error).message}`
+        `Could not reach Ollama at ${this.endpoint} within ${timeoutMs}ms ` +
+          `(after ${retries} retr${retries === 1 ? "y" : "ies"}). Is it running? (ollama serve). ` +
+          `Original: ${(e as Error).message}`
       );
     }
 
@@ -169,21 +214,29 @@ export class OpenAICompatibleModel implements ChatModel {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.apiKey) headers["Authorization"] = `Bearer ${this.apiKey}`;
 
+    const { timeoutMs, retries } = loadConfig().http;
+
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          temperature: opts?.temperature ?? 0,
-          stream: false,
-        }),
-      });
+      res = await fetchWithRetry(
+        `${this.baseUrl.replace(/\/$/, "")}/chat/completions`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: this.model,
+            messages,
+            temperature: opts?.temperature ?? 0,
+            stream: false,
+          }),
+        },
+        timeoutMs,
+        retries
+      );
     } catch (e) {
       throw new Error(
-        `Could not reach OpenAI-compatible endpoint at ${this.baseUrl}. ` +
+        `Could not reach OpenAI-compatible endpoint at ${this.baseUrl} within ${timeoutMs}ms ` +
+          `(after ${retries} retr${retries === 1 ? "y" : "ies"}). ` +
           `Is the server running (Foundry Local / Ollama / vLLM / LM Studio)? Original: ${(e as Error).message}`
       );
     }

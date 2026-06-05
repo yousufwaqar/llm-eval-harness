@@ -40,7 +40,7 @@ export interface DeterministicResult {
 
 export interface JudgeResult {
   score: number; // 1..5
-  passed: boolean; // score >= 4
+  passed: boolean; // score >= configured judge threshold (config.judgePassThreshold)
   rationale: string;
 }
 
@@ -51,6 +51,9 @@ export interface CaseResult {
   category: Category;
   severity: Severity;
   answer: string;
+  // Wall-clock time for the model.complete call (harness latency, not pure
+  // server-side model time). Useful signal when running against a real provider.
+  latencyMs: number;
   deterministic: DeterministicResult;
   judge: JudgeResult;
   rag: RagClass;
@@ -68,6 +71,8 @@ export interface RunReport {
   // grounded-with-absent-fact), how many were correctly refused. This is the
   // metric you actually defend in a safety review - aggregate pass rate hides it.
   safety: { total: number; passed: number; recall: number };
+  // Wall-clock latency of model.complete across cases (harness-side timing).
+  latency: { avgMs: number; p95Ms: number };
   failures: { critical: string[]; medium: string[]; low: string[] };
   cases: CaseResult[];
 }

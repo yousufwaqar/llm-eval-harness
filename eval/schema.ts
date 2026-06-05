@@ -52,9 +52,20 @@ export function validateGolden(data: unknown): GoldenCase[] {
     }
 
     for (const key of ["mustInclude", "mustNotInclude", "tags"] as const) {
-      if (c[key] !== undefined && !Array.isArray(c[key])) {
-        errors.push(`${where}: "${key}" must be an array of strings if present`);
+      const val = c[key];
+      if (val !== undefined) {
+        if (!Array.isArray(val)) {
+          errors.push(`${where}: "${key}" must be an array of strings if present`);
+        } else if (!val.every((el) => typeof el === "string")) {
+          errors.push(`${where}: "${key}" must contain only strings`);
+        }
       }
+    }
+    if (c.context !== undefined && typeof c.context !== "string") {
+      errors.push(`${where}: "context" must be a string if present`);
+    }
+    if ("expectedFact" in c && c.expectedFact !== null && typeof c.expectedFact !== "string") {
+      errors.push(`${where}: "expectedFact" must be a string or null`);
     }
     for (const key of ["regexMustMatch", "regexMustNotMatch"] as const) {
       if (c[key] !== undefined) {

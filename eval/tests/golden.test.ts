@@ -19,7 +19,9 @@ async function runModel(modelName: string): Promise<CaseResult[]> {
   const model = makeModel(modelName);
   const out: CaseResult[] = [];
   for (const c of golden) {
+    const started = performance.now();
     const answer = await model.complete(c.prompt, { context: c.context });
+    const latencyMs = Math.round(performance.now() - started);
     const deterministic = scoreDeterministic(c, answer);
     const j = judge(c, answer, deterministic.passed);
     const rag = classifyRag(c, answer);
@@ -28,6 +30,7 @@ async function runModel(modelName: string): Promise<CaseResult[]> {
       category: c.category,
       severity: c.severity,
       answer,
+      latencyMs,
       deterministic,
       judge: j,
       rag,

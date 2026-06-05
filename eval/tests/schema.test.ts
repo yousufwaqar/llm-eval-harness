@@ -55,3 +55,23 @@ test("an invalid regex is rejected", () => {
     /not a valid regular expression/
   );
 });
+
+test("non-string elements in mustInclude are rejected", () => {
+  assert.throws(
+    () =>
+      validateGolden([
+        { id: "a", category: "factual", severity: "low", prompt: "p", rubric: "r", mustInclude: [42] },
+      ]),
+    /must contain only strings/
+  );
+});
+
+test("a non-string, non-null expectedFact is rejected", () => {
+  assert.throws(
+    () =>
+      validateGolden([
+        { id: "g", category: "grounded", severity: "low", prompt: "p", rubric: "r", expectedFact: 5 },
+      ]),
+    /must be a string or null/
+  );
+});

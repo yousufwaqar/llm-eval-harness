@@ -26,9 +26,6 @@ jobs:
       - name: Unit tests (the harness tests itself)
         run: npm test
 
-      - name: Run evaluation gate (stub model, no API key required)
-        run: npm run eval
-
       - name: Prove the gate catches a bad model
         run: |
           if npm run eval:bad; then
@@ -37,6 +34,9 @@ jobs:
           else
             echo "OK: gate correctly failed the bad model"
           fi
+
+      - name: Run evaluation gate (stub model, no API key required)
+        run: npm run eval
 
       - name: Upload eval reports (json + html + scorecard)
         if: always()

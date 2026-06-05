@@ -10,6 +10,7 @@ import { compareDrift, writeBaseline } from "./drift.ts";
 import { loadConfig } from "./config.ts";
 import { validateGolden } from "./schema.ts";
 import { writeReports } from "./report.ts";
+import { requiresRefusal } from "./policy.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -18,14 +19,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 // medium/low get a small budget so a single flaky low-priority miss doesn't
 // block a release while real regressions still fail CI.
 const BUDGET = loadConfig().budgets;
-
-// A case "requires refusal" when the only safe answer is to decline or admit
-// the information is unavailable. These drive the safety-recall metric.
-function requiresRefusal(c: GoldenCase): boolean {
-  if (c.category === "refusal" || c.category === "safety" || c.category === "injection") return true;
-  if (c.category === "grounded" && c.expectedFact === null) return true;
-  return false;
-}
 
 function arg(flag: string, fallback?: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -47,7 +40,9 @@ async function main(): Promise<void> {
   let safetyTotal = 0;
   let safetyPassed = 0;
   for (const c of golden) {
+    const started = performance.now();
     const answer = await model.complete(c.prompt, { context: c.context });
+    const latencyMs = Math.round(performance.now() - started);
 
     const deterministic = scoreDeterministic(c, answer);
     const j = judge(c, answer, deterministic.passed);
@@ -64,6 +59,7 @@ async function main(): Promise<void> {
       category: c.category,
       severity: c.severity,
       answer,
+      latencyMs,
       deterministic,
       judge: j,
       rag,
@@ -86,6 +82,14 @@ async function main(): Promise<void> {
     }
   }
 
+  const latencies = cases.map((c) => c.latencyMs).sort((a, b) => a - b);
+  const avgMs = latencies.length
+    ? Math.round(latencies.reduce((s, n) => s + n, 0) / latencies.length)
+    : 0;
+  const p95Ms = latencies.length
+    ? latencies[Math.min(latencies.length - 1, Math.ceil(latencies.length * 0.95) - 1)]
+    : 0;
+
   const report: RunReport = {
     model: model.name,
     timestamp: new Date().toISOString(),
@@ -98,6 +102,7 @@ async function main(): Promise<void> {
       passed: safetyPassed,
       recall: Number((safetyTotal ? safetyPassed / safetyTotal : 1).toFixed(4)),
     },
+    latency: { avgMs, p95Ms },
     failures,
     cases,
   };
@@ -174,13 +179,13 @@ function printTable(report: RunReport): void {
   console.log(`\nLLM Eval Harness  |  model=${report.model}  |  ${report.timestamp}`);
   console.log("-".repeat(78));
   console.log(
-    pad("CASE", 22) + pad("CATEGORY", 12) + pad("SEV", 10) + pad("RAG", 12) + "RESULT"
+    pad("CASE", 22) + pad("CATEGORY", 12) + pad("SEV", 10) + pad("RAG", 12) + pad("LAT", 9) + "RESULT"
   );
   console.log("-".repeat(78));
   for (const c of report.cases) {
     const result = c.passed ? "PASS" : "FAIL";
     console.log(
-      pad(c.id, 22) + pad(c.category, 12) + pad(c.severity, 10) + pad(c.rag, 12) + result
+      pad(c.id, 22) + pad(c.category, 12) + pad(c.severity, 10) + pad(c.rag, 12) + pad(`${c.latencyMs}ms`, 9) + result
     );
     if (!c.passed) {
       const why = [...c.deterministic.reasons];
@@ -192,7 +197,8 @@ function printTable(report: RunReport): void {
   console.log("-".repeat(78));
   console.log(
     `TOTAL ${report.passed}/${report.total} passed (${fmtPct(report.passRate)})  ` +
-      `critical=${report.failures.critical.length} medium=${report.failures.medium.length} low=${report.failures.low.length}`
+      `critical=${report.failures.critical.length} medium=${report.failures.medium.length} low=${report.failures.low.length}  ` +
+      `latency avg=${report.latency.avgMs}ms p95=${report.latency.p95Ms}ms`
   );
 }
 

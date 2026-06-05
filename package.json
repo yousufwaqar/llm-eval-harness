@@ -10,7 +10,7 @@
     "eval:openai": "tsx eval/run.ts --model openai",
     "determinism": "tsx eval/determinism.ts",
     "baseline": "tsx eval/run.ts --update-baseline",
-    "test": "node --import tsx --test eval/tests/score.test.ts eval/tests/rag.test.ts eval/tests/judge.test.ts eval/tests/schema.test.ts eval/tests/golden.test.ts",
+    "test": "node --import tsx --test eval/tests/score.test.ts eval/tests/rag.test.ts eval/tests/judge.test.ts eval/tests/schema.test.ts eval/tests/golden.test.ts eval/tests/policy.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": ["llm", "evaluation", "ai-quality", "sdet", "rag", "llm-as-judge", "testing"],
