@@ -11,3 +11,8 @@ promptfoo/promptfoo-report.json
 promptfoo/promptfoo-report.html
 .promptfoo/
 promptfoo/promptfoo-bad-report.json
+
+# Python caches
+python-eval/__pycache__/
+__pycache__/
+.pytest_cache/

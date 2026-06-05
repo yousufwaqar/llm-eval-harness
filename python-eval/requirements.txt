@@ -1,0 +1,4 @@
+# DeepEval Python track. Heavy enough that it runs in CI only, never as part of
+# the default Node path. Pinned for reproducibility.
+deepeval==4.0.5
+pytest>=8,<9

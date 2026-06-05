@@ -72,3 +72,29 @@ jobs:
             promptfoo/promptfoo-report.json
             promptfoo/promptfoo-report.html
             promptfoo/promptfoo-bad-report.json
+
+  # Independent DeepEval (Python) track. Kept as a separate job so the heavy
+  # Python / ML install never touches the Node path. Pinned to Python 3.12.
+  deepeval:
+    runs-on: ubuntu-latest
+    env:
+      # No telemetry, no Confident AI calls: the metric is a local deterministic
+      # contract check, so this run stays hermetic and offline.
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-eval/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r python-eval/requirements.txt
+
+      - name: Offline self-check (zero-dependency contract proof)
+        run: python python-eval/selfcheck.py
+
+      - name: DeepEval suite (stub must pass, bad model must be caught)
+        run: pytest python-eval -q

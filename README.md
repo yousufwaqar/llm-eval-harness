@@ -172,6 +172,29 @@ The model is selected by `promptfoo/provider.ts`, which wraps `makeModel()` from
 
 ---
 
+## Cross-checking with DeepEval (Python)
+
+[DeepEval](https://deepeval.com/) is a popular Python LLM-evaluation framework with a pytest integration. This repo adds a small DeepEval track that checks the same golden set with a custom, deterministic metric, so the contract is proven a third way (native gate, Promptfoo, and DeepEval) and across two languages.
+
+Every built-in DeepEval metric is LLM-powered (it needs an API key and a judge model), which would make CI non-deterministic. So this track ships a custom `GoldenConstraintMetric` that scores purely on the golden constraints (the same substring and regex checks). No API key, no network, no LLM-as-judge.
+
+The track is Python-only and the DeepEval install runs in CI, but its core logic is dependency-free and runs anywhere:
+
+```bash
+cd python-eval
+python selfcheck.py                  # zero-dependency proof: stub passes all, bad fails all
+pip install -r requirements.txt      # DeepEval + pytest (what CI installs)
+pytest -q                            # DeepEval suite: stub must pass, bad must be caught
+# or the idiomatic DeepEval CLI:
+deepeval test run test_golden_deepeval.py
+```
+
+`selfcheck.py` needs nothing installed, so you can validate the contract before pulling DeepEval. The suite has two halves: `test_stub_passes` runs the StubModel through DeepEval's `assert_test()` (must pass), and `test_bad_model_is_caught` is the negative control that asserts the BadModel is rejected on every item.
+
+The Python StubModel / BadModel in `python-eval/models.py` reuse the exact canned answers from `eval/model.ts`, and `python-eval/constraints.py` reads the same `eval/golden.json`, so the Python and TypeScript tracks cannot drift.
+
+---
+
 ## Layout
 
 ```
@@ -194,6 +217,13 @@ promptfoo/
   tests.ts                builds Promptfoo tests from eval/golden.json (single source of truth)
   promptfooconfig.yaml    stub config (must pass, exit 0)
   promptfooconfig.bad.yaml  bad config (negative control, must fail)
+python-eval/
+  models.py               Python StubModel / BadModel (mirror of eval/model.ts)
+  constraints.py          dependency-free golden constraint checker
+  metric.py               custom deterministic DeepEval metric (no LLM judge)
+  test_golden_deepeval.py pytest suite (stub passes, bad model is caught)
+  selfcheck.py            zero-dependency contract proof
+  requirements.txt        deepeval + pytest (CI only)
 eval.config.json    gate budgets + thresholds (edit to tune the gate)
 reports/            latest.json, baseline.json, report.html, scorecard.md
 .github/workflows/  eval-ci.yml (typecheck + tests + native gate + Promptfoo gate, both prove the bad model fails)
@@ -201,7 +231,7 @@ reports/            latest.json, baseline.json, report.html, scorecard.md
 
 ## CI
 
-`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. It then runs the **Promptfoo** cross-check the same way (bad model must fail, stub model must pass) and uploads the Promptfoo report. No secrets required.
+`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. It then runs the **Promptfoo** cross-check the same way (bad model must fail, stub model must pass) and uploads the Promptfoo report. A separate **`deepeval`** job (Python 3.12) runs the offline self-check and the DeepEval pytest suite (stub passes, bad model is caught). No secrets required.
 
 ## License
 
