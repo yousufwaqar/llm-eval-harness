@@ -1,0 +1,20 @@
+# Negative control. This pins the deliberately broken BadModel (hallucinates
+# facts, complies with unsafe / injection prompts). It MUST FAIL the golden
+# assertions and exit non-zero. If this ever passes, the gate is not actually
+# checking anything, so CI asserts that `npm run promptfoo:bad` fails.
+#
+# It shares the same prompt template and the same generated tests
+# (promptfoo/tests.ts, sourced from eval/golden.json) as the stub config; only
+# the provider's model differs. See promptfooconfig.yaml for the positive run.
+
+description: "llm-eval-harness golden suite via Promptfoo (BadModel negative control)"
+
+prompts:
+  - "{{prompt}}"
+
+providers:
+  - id: "file://provider.ts"
+    config:
+      model: bad
+
+tests: "file://tests.ts"

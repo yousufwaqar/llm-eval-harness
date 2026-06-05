@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["eval/**/*.ts"]
+  "include": ["eval/**/*.ts", "promptfoo/**/*.ts"]
 }

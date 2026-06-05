@@ -50,6 +50,8 @@ npm test              # self-tests: the harness tests its own scorers (node:test
 npm run baseline      # record current run as reports/baseline.json
 npm run determinism   # check each prompt is stable across repeated calls
 npm run eval:ollama   # evaluate a real local model via Ollama (see below)
+npm run promptfoo     # cross-check the stub model through Promptfoo (offline, must pass)
+npm run promptfoo:bad # cross-check that Promptfoo also fails the bad model (must fail)
 npm run typecheck     # tsc --noEmit
 ```
 
@@ -144,6 +146,32 @@ Categories: `factual`, `grounded`, `refusal`, `safety`, `injection`, `relevance`
 
 ---
 
+## Cross-checking with Promptfoo
+
+[Promptfoo](https://www.promptfoo.dev/) is a widely used open-source LLM testing tool. This repo wires the same golden set and the same stub / bad models into Promptfoo as a second, independent checker, so the assertion contract is verified by a tool other than the harness's own scorer.
+
+It is an offline deterministic smoke gate, not a model-quality benchmark: the custom provider drives the built-in StubModel and BadModel (no API key, no network), and every assertion is a plain substring or regex check (no LLM-as-judge). The point is to prove the wiring is correct end to end through a different engine.
+
+```bash
+npm run promptfoo       # stub model through Promptfoo -> all assertions PASS (exit 0)
+npm run promptfoo:bad   # bad model through Promptfoo  -> all assertions FAIL (non-zero)
+```
+
+`npm run promptfoo:bad` is again the important one: it is the negative control that proves Promptfoo actually fails the broken model, just like `npm run eval:bad` does for the native gate.
+
+`promptfoo/tests.ts` reads `eval/golden.json` (the single source of truth) and turns each item into Promptfoo test cases, so the two systems cannot drift. Each golden constraint becomes a deterministic assertion:
+
+| golden field | Promptfoo assertion |
+| --- | --- |
+| `mustInclude[]` | `icontains` |
+| `mustNotInclude[]` | `not-icontains` |
+| `regexMustMatch` | `regex` |
+| `regexMustNotMatch` | `not-regex` |
+
+The model is selected by `promptfoo/provider.ts`, which wraps `makeModel()` from `eval/model.ts`. `promptfooconfig.yaml` pins the stub (must pass) and `promptfooconfig.bad.yaml` pins the bad model (must fail). CI runs both.
+
+---
+
 ## Layout
 
 ```
@@ -161,14 +189,19 @@ eval/
   run.ts            orchestrator: score -> judge -> rag -> gate -> report
   determinism.ts    stability check
   tests/            node:test self-tests for the scorers/judge/rag/schema
+promptfoo/
+  provider.ts             custom Promptfoo provider wrapping makeModel() (stub / bad)
+  tests.ts                builds Promptfoo tests from eval/golden.json (single source of truth)
+  promptfooconfig.yaml    stub config (must pass, exit 0)
+  promptfooconfig.bad.yaml  bad config (negative control, must fail)
 eval.config.json    gate budgets + thresholds (edit to tune the gate)
 reports/            latest.json, baseline.json, report.html, scorecard.md
-.github/workflows/  eval-ci.yml (typecheck + tests + gate + proves bad model fails)
+.github/workflows/  eval-ci.yml (typecheck + tests + native gate + Promptfoo gate, both prove the bad model fails)
 ```
 
 ## CI
 
-`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. No secrets required.
+`.github/workflows/eval-ci.yml` runs `npm ci`, typecheck, **`npm test`** (the harness's own unit tests), the gate on the good model (must pass), asserts the **bad** model fails the gate, posts the scorecard to the run's job summary, and uploads `latest.json` + `report.html` + `scorecard.md` as artifacts. It then runs the **Promptfoo** cross-check the same way (bad model must fail, stub model must pass) and uploads the Promptfoo report. No secrets required.
 
 ## License
 

@@ -1,0 +1,25 @@
+# Promptfoo configuration for the llm-eval-harness golden suite.
+#
+# This is an OFFLINE deterministic smoke gate: the custom provider drives the
+# harness's own StubModel / BadModel (no API key, no network), and every
+# assertion is a substring/regex check (no LLM-as-judge). It proves the
+# assertion contract is wired correctly end-to-end through a second, independent
+# tool. It is NOT a measure of any real model's quality.
+#
+# This file pins the well-behaved StubModel, which MUST pass every assertion
+# (exit 0). Its negative-control twin, promptfooconfig.bad.yaml, pins the
+# deliberately broken BadModel, which MUST fail (non-zero exit). Run them with:
+#   npm run promptfoo       -> stub  (MUST pass: exit 0)
+#   npm run promptfoo:bad   -> bad   (MUST fail: non-zero, proves the gate works)
+
+description: "llm-eval-harness golden suite via Promptfoo (offline stub smoke gate)"
+
+prompts:
+  - "{{prompt}}"
+
+providers:
+  - id: "file://provider.ts"
+    config:
+      model: stub
+
+tests: "file://tests.ts"

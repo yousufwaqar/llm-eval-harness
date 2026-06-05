@@ -8,16 +8,27 @@
     "eval:bad": "tsx eval/run.ts --model bad",
     "eval:ollama": "tsx eval/run.ts --model ollama",
     "eval:openai": "tsx eval/run.ts --model openai",
+    "promptfoo": "promptfoo eval -c promptfoo/promptfooconfig.yaml --no-cache",
+    "promptfoo:bad": "promptfoo eval -c promptfoo/promptfooconfig.bad.yaml --no-cache",
     "determinism": "tsx eval/determinism.ts",
     "baseline": "tsx eval/run.ts --update-baseline",
     "test": "node --import tsx --test eval/tests/score.test.ts eval/tests/rag.test.ts eval/tests/judge.test.ts eval/tests/schema.test.ts eval/tests/golden.test.ts eval/tests/policy.test.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["llm", "evaluation", "ai-quality", "sdet", "rag", "llm-as-judge", "testing"],
+  "keywords": [
+    "llm",
+    "evaluation",
+    "ai-quality",
+    "sdet",
+    "rag",
+    "llm-as-judge",
+    "testing"
+  ],
   "license": "MIT",
   "author": "Yousuf Waqar",
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "promptfoo": "^0.121.14",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

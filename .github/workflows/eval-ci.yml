@@ -9,6 +9,12 @@ on:
 jobs:
   eval:
     runs-on: ubuntu-latest
+    env:
+      # Keep the Promptfoo runs hermetic: no telemetry, no update checks, no
+      # network beyond installing the package. The provider path is already
+      # offline (stub / bad models, no API key); these make that explicit.
+      PROMPTFOO_DISABLE_TELEMETRY: "1"
+      PROMPTFOO_DISABLE_UPDATE: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +44,15 @@ jobs:
       - name: Run evaluation gate (stub model, no API key required)
         run: npm run eval
 
+      - name: Promptfoo negative control (BadModel must fail every case on assertions)
+        run: |
+          npx promptfoo eval -c promptfoo/promptfooconfig.bad.yaml --no-cache \
+            --output promptfoo/promptfoo-bad-report.json || true
+          node promptfoo/check-bad-report.mjs promptfoo/promptfoo-bad-report.json
+
+      - name: Promptfoo gate (stub model, offline smoke gate, no API key)
+        run: npx promptfoo eval -c promptfoo/promptfooconfig.yaml --no-cache --output promptfoo/promptfoo-report.json promptfoo/promptfoo-report.html
+
       - name: Upload eval reports (json + html + scorecard)
         if: always()
         uses: actions/upload-artifact@v4
@@ -47,3 +62,13 @@ jobs:
             reports/latest.json
             reports/report.html
             reports/scorecard.md
+
+      - name: Upload Promptfoo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptfoo-report
+          path: |
+            promptfoo/promptfoo-report.json
+            promptfoo/promptfoo-report.html
+            promptfoo/promptfoo-bad-report.json

@@ -5,3 +5,9 @@ reports/scorecard.md
 *.log
 .DS_Store
 .env
+
+# Promptfoo generated reports and local cache
+promptfoo/promptfoo-report.json
+promptfoo/promptfoo-report.html
+.promptfoo/
+promptfoo/promptfoo-bad-report.json
